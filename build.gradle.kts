@@ -11,15 +11,10 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
-    application
 }
 
-application {
-    applicationDefaultJvmArgs = listOf("-Xmx8g")
-}
-
-group = properties("pluginGroup")
-version = properties("pluginVersion")
+group = properties("pluginGroup").get()
+version = properties("pluginVersion").get()
 
 // Configure project's dependencies
 repositories {
@@ -71,6 +66,10 @@ koverReport {
 }
 
 tasks {
+    wrapper {
+        gradleVersion = properties("gradleVersion").get()
+    }
+
     patchPluginXml {
         version = properties("pluginVersion")
         sinceBuild = properties("pluginSinceBuild")
