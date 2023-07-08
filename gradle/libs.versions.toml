@@ -1,0 +1,26 @@
+[versions]
+# libraries
+annotations = "24.0.1"
+kotlinCoroutinesTest = "1.6.4"
+turbine = "0.12.3"
+
+# plugins
+changelog = "2.1.0"
+dokka = "1.8.10"
+gradleIntelliJPlugin = "1.14.1"
+kotlin = "1.8.21"
+kover = "0.7.1"
+qodana = "0.1.13"
+
+[libraries]
+annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }
+kotlinCoroutinesTest = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinCoroutinesTest" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+
+[plugins]
+changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+gradleIntelliJPlugin = { id = "org.jetbrains.intellij", version.ref = "gradleIntelliJPlugin" }
+kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+qodana = { id = "org.jetbrains.qodana", version.ref = "qodana" }

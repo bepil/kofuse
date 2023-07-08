@@ -1,0 +1,37 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>com.github.bepil.kofuse</id>
+    <name>Kofuse</name>
+    <vendor>bepil</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+    <depends>org.jetbrains.kotlin</depends>
+
+    <resource-bundle>messages.KofuseBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceInterface="com.github.bepil.kofuse.services.FunctionIndexService"
+                        serviceImplementation="com.github.bepil.kofuse.services.ProductionFunctionIndexService"
+                        testServiceImplementation="com.github.bepil.kofuse.services.TestFunctionIndexService"/>
+
+        <searchEverywhereContributor implementation="com.github.bepil.kofuse.actions.KofuseSecFactory"/>
+
+        <postStartupActivity implementation="com.github.bepil.kofuse.listeners.KofuseProjectActivity"/>
+    </extensions>
+
+
+    <actions>
+        <action id="com.github.bepil.kofuse.actions.KofuseAction" class="com.github.bepil.kofuse.actions.KofuseAction"
+                text="Kofuse" description="Typical search">
+            <keyboard-shortcut first-keystroke="meta alt K" keymap="Mac OS X"/>
+            <keyboard-shortcut first-keystroke="meta alt K" keymap="Mac OS X 10.5+"/>
+            <keyboard-shortcut first-keystroke="ctrl alt k" keymap="$default"/>
+            <add-to-group group-id="SearchEverywhereActions" anchor="first"/>
+            <add-to-group
+                    group-id="GoToTargetEx"
+                    relative-to-action="GotoSymbol"
+                    anchor="after"/>
+        </action>
+    </actions>
+</idea-plugin>
