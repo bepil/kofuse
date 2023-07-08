@@ -5,10 +5,10 @@ kotlinCoroutinesTest = "1.6.4"
 turbine = "0.12.3"
 
 # plugins
-changelog = "2.1.0"
+changelog = "2.1.1"
 dokka = "1.8.10"
-gradleIntelliJPlugin = "1.14.1"
-kotlin = "1.8.21"
+gradleIntelliJPlugin = "1.15.0"
+kotlin = "1.9.0"
 kover = "0.7.1"
 qodana = "0.1.13"
 
