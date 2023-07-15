@@ -1,14 +1,13 @@
 # kofuse
 
-[![Version](https://img.shields.io/jetbrains/plugin/v/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/com.github.bepil.kofuse)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/com.github.bepil.kofuse)
+![Build](https://github.com/bepil/kofuse/workflows/Build/badge.svg)
 
 <!-- Plugin description -->
 Kofuse allows you to find Kotlin functions and methods by their type signature. To search using Kofuse, open the 
 *Navigate* menu and press *Kofuse*. Types need to be entered with their fully qualified name.
 
 
-![](doc/assets/search.png)
+![](https://github.com/bepil/kofuse/tree/main/doc/assets/search.png)
 <!-- Plugin description end -->
 
 
