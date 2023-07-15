@@ -7,7 +7,7 @@ Kofuse allows you to find Kotlin functions and methods by their type signature. 
 *Navigate* menu and press *Kofuse*. Types need to be entered with their fully qualified name.
 
 
-![](https://github.com/bepil/kofuse/tree/main/doc/assets/search.png)
+![](https://raw.githubusercontent.com/bepil/kofuse/d50b210963af06a9651516573beee05aac9a97b9/doc/assets/search.png)
 <!-- Plugin description end -->
 
 
