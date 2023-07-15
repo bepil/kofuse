@@ -2,6 +2,7 @@
 
 # kofuse Changelog
 
-## [Unreleased]
-### Added
-- Initial version of Kofuse.
+## Unreleased
+
+## 0.0.1 - 2023-07-15
+Cleaned up README
