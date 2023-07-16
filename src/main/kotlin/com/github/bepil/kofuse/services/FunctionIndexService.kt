@@ -32,7 +32,8 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.indexing.FileBasedIndex
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
@@ -40,14 +41,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import org.jetbrains.kotlin.idea.base.psi.kotlinFqName
 import org.jetbrains.kotlin.idea.core.util.toPsiFile
 import org.jetbrains.kotlin.idea.util.isKotlinFileType
@@ -141,12 +144,12 @@ private fun CoroutineScope.displayIndexingStateInUi(project: Project, flowToDisp
         }
     }
 
-@OptIn(FlowPreview::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 private fun createFunctionIndex(project: Project, indexFlow: Flow<WriteableKofuseIndex>): Flow<FunctionIndexState> {
     return combine(
-        indexFlow.flatMapConcat {
+        indexFlow.flatMapLatest {
             buildKotlinIndex(project, it)
-        },
+        }.buffer(0, onBufferOverflow = BufferOverflow.SUSPEND),
         project.changes.startWithNull()
     ) { functionIndex, changedFile ->
         if (functionIndex is FunctionIndexState.Indexed) {
@@ -175,7 +178,12 @@ internal fun KofuseIndex.findFunctionsMatching(
     val fileIndexEntries = read(returnTypeFqn)
     return fileIndexEntries
         .mapEntriesIndexed { index, entry ->
-            entry.value.map { ProgressResult(FileOffsetIndexEntry(entry.key, it), index.toDouble() / fileIndexEntries.size) }
+            entry.value.map {
+                ProgressResult(
+                    FileOffsetIndexEntry(entry.key, it),
+                    index.toDouble() / fileIndexEntries.size
+                )
+            }
         }.values.flatten().asFlow()
         .map { progressResult ->
             progressResult.mapResult { mapFileIndexEntriesToNamedFunctions(it, project, managingFSInstance) }
@@ -241,6 +249,7 @@ private suspend fun buildKotlinIndex(
     }
     project.indexableFiles().collect { fileOrDir ->
         trySend(FunctionIndexState.Indexing(fileOrDir))
+        yield()
         DumbService.getInstance(project).runReadActionInSmartMode {
             if (fileOrDir.isKotlinFileType()) {
                 psiManager.findFile(fileOrDir)?.let { psiFile ->
@@ -252,7 +261,7 @@ private suspend fun buildKotlinIndex(
         }
     }
     trySendBlocking(FunctionIndexState.Indexed(index))
-    close() // Close, since we are done. This prevents the caller waiting for more unnecessarily. TODO: but perhaps the caller should cancel if something new comes?
+    close() // Close, since we are done. This prevents the caller waiting for more unnecessarily.
     awaitClose { }
 }
 

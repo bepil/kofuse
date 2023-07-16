@@ -13,6 +13,7 @@ import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.isActive
 
 /**
  * Returns a [Flow], emitting a [PsiFile] everytime that file is modified.
@@ -38,7 +39,7 @@ val Project.changes: Flow<PsiFile>
 internal fun Project.indexableFiles(): Flow<VirtualFile> = callbackFlow {
     FileBasedIndex.getInstance().iterateIndexableFiles({ fileOrDir ->
         trySendBlocking(fileOrDir)
-        true
+        isActive
     }, this@indexableFiles, null)
     close()
     awaitClose { }
