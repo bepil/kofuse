@@ -1,7 +1,6 @@
-package com.github.bepil.kofuse
+package com.github.bepil.kofuse.actions
 
 import app.cash.turbine.test
-import com.github.bepil.kofuse.actions.KofuseContributor
 import com.intellij.ide.actions.searcheverywhere.WeightedSearchEverywhereContributor
 import com.intellij.mock.MockProgressIndicator
 import com.intellij.openapi.actionSystem.ActionPlaces

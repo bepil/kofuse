@@ -1,6 +1,5 @@
-package com.github.bepil.kofuse
+package com.github.bepil.kofuse.services.model
 
-import com.github.bepil.kofuse.services.model.MemoryKofuseIndex
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
