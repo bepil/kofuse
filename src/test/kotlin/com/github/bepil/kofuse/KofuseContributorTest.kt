@@ -72,7 +72,8 @@ class KofuseContributorTest : LightJavaCodeInsightFixtureTestCase() {
                 listOf(
                     "apackage.freeFunctionNoneToInt",
                     "apackage.SomeClass.Companion.companionFunctionNoneToInt",
-                    "apackage.freeFunctionNoneToOptionalInt"
+                    "apackage.freeFunctionNoneToOptionalInt",
+                    "apackage.freeFunctionOptionalToInt"
                 )
             ),
             TestData(

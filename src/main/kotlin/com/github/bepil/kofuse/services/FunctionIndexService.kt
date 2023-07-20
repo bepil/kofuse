@@ -53,6 +53,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import org.jetbrains.kotlin.idea.base.psi.kotlinFqName
 import org.jetbrains.kotlin.idea.core.util.toPsiFile
+import org.jetbrains.kotlin.idea.search.usagesSearch.descriptor
 import org.jetbrains.kotlin.idea.util.isKotlinFileType
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.nj2k.types.typeFqName
@@ -229,8 +230,10 @@ private inline val KtNamedFunction.inputs: Sequence<String>
         }?.fqName?.asString()
         receiverMethodClass?.let { yield(it) }
         valueParameterList?.parameters?.forEach { parameter ->
-            parameter.typeFqName()?.asString()?.let {
-                yield(it)
+            if (parameter.descriptor?.type?.isMarkedNullable == false) {
+                parameter.typeFqName()?.asString()?.let {
+                    yield(it)
+                }
             }
         }
         val extensionReceiverType =

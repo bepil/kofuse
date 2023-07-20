@@ -1,6 +1,9 @@
 package apackage
 
 fun freeFunctionNoneToInt() = 1
+
+fun freeFunctionOptionalToInt(optional: String?) = 1
+
 fun freeFunctionNoneToOptionalInt(): Int? = null
 
 fun freeFunctionNoneToList(): List<*> = emptyList<Any>()

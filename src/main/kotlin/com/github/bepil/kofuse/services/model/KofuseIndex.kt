@@ -37,16 +37,22 @@ internal interface WriteableKofuseIndex : KofuseIndex {
     fun clear()
 }
 
+
+private typealias FileId = Int
+private typealias FileOffset = Int
+
 /**
  * Implementation of [WriteableKofuseIndex] that stores the index in memory. The index is therefore not persisted.
  */
 internal class MemoryKofuseIndex : WriteableKofuseIndex {
 
-    private val index = mutableMapOf<String, MutableMap<Int, MutableList<Int>>>()
+    private val index = mutableMapOf<String, MutableMap<FileId, MutableList<FileOffset>>>()
+    private val forwardIndex = mutableMapOf<FileId, Set<String>>()
 
     override fun read(key: String): FileIdToOffsets = index[key] ?: emptyMap()
     override fun clear() {
         index.clear()
+        forwardIndex.clear()
     }
 
     override fun addIndex(fileId: Int, data: Map<String, List<Int>>) {
@@ -60,9 +66,14 @@ internal class MemoryKofuseIndex : WriteableKofuseIndex {
             }
             index[key]!![fileId]!!.addAll(value)
         }
+        forwardIndex[fileId] = data.keys + forwardIndex[fileId].orEmpty()
     }
 
     override fun updateIndex(fileId: Int, data: Map<String, List<Int>>) {
+        forwardIndex[fileId]?.forEach { key ->
+            index[key]?.remove(fileId)
+        }
+        forwardIndex[fileId] = data.keys
         data.forEach { (key, value) ->
             if (!index.contains(key)) {
                 index[key] = mutableMapOf()
