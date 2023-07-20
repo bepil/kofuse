@@ -1,6 +1,7 @@
 # kofuse
 
 ![Build](https://github.com/bepil/kofuse/workflows/Build/badge.svg)
+[![Version](https://img.shields.io/jetbrains/plugin/v/22222-kofuse.svg)](https://plugins.jetbrains.com/plugin/22222-kofuse)
 
 <!-- Plugin description -->
 Kofuse allows you to find Kotlin functions and methods by their type signature. To search using Kofuse, open the 
@@ -16,13 +17,8 @@ To install Kofuse into Intellij IDEA, follow the steps below:
 1. Go into the *Preferences* of IntelliJ IDEA;
 2. On the left, click on the *Plugins* section;
 3. Click on the *Marketplace* tab;
-4. Click on the settings gear icon;
-5. Click on *Manage Plugin Repositories*;
-6. Click on the *+* button;
-7. Enter `https://plugins.jetbrains.com/plugins/alpha/list`;
-8. Click *OK*;
-9. Search for *Kofuse*;
-10. Click *Install*.
+4. Search for *Kofuse*;
+5. Click *Install*.
 
 ### Run Kofuse from sources
 To run Kofuse from sources:
