@@ -78,8 +78,8 @@ internal class MemoryKofuseIndex : KofuseIndex {
                 copy.forwardIndex[fileId]?.let { existingKeys ->
                     val newKeys = data.keys
                     val keysToRemove = existingKeys - newKeys
-                    keysToRemove.forEach {
-                        copy.index[it] = copy.index[it]!!.filter { it.key != fileId }
+                    keysToRemove.forEach { key ->
+                        copy.index[key] = copy.index[key]!!.filter { it.key != fileId }
                     }
                 }
 

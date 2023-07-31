@@ -198,8 +198,8 @@ private fun createFunctionIndexFromFunctionIndexState(
                 }
             }
         )
-    }.transform {
-        it.index?.let {
+    }.transform { indexState ->
+        indexState.index?.let {
             emit(it)
         }
     }
