@@ -181,4 +181,3 @@ private fun parse(input: String): SearchQuery? {
     }
     return null
 }
-
