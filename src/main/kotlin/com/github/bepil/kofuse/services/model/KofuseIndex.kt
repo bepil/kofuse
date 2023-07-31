@@ -1,5 +1,7 @@
 package com.github.bepil.kofuse.services.model
 
+import arrow.core.getOrNone
+
 /**
  * Interface for finding functions by their fully qualified return type.
  */
@@ -9,13 +11,18 @@ internal interface KofuseIndex {
      * as the fully qualified return type.
      */
     fun read(key: String): FileIdToOffsets
+
+    /**
+     * Returns a new immutable index based on `this`, but changed according to
+     * [block].
+     */
+    fun withUpdates(block: WriteableKofuseIndex.() -> Unit): KofuseIndex
 }
 
 /**
  * Interface for writing functions indexed by their fully qualified return type.
  */
-internal interface WriteableKofuseIndex : KofuseIndex {
-
+internal interface WriteableKofuseIndex {
     /**
      * For [fileId], adds new entries to index based on [data]. The value of [data]
      * is a list of file offsets to function which have [data]'s key as their
@@ -28,13 +35,6 @@ internal interface WriteableKofuseIndex : KofuseIndex {
      * from [data].
      */
     fun updateIndex(fileId: Int, data: Map<String, List<Int>>)
-
-
-    /**
-     * Clears the index, after this call, a direct subsequent call to [read] will
-     * return empty data.
-     */
-    fun clear()
 }
 
 
@@ -44,42 +44,65 @@ private typealias FileOffset = Int
 /**
  * Implementation of [WriteableKofuseIndex] that stores the index in memory. The index is therefore not persisted.
  */
-internal class MemoryKofuseIndex : WriteableKofuseIndex {
+internal class MemoryKofuseIndex : KofuseIndex {
 
-    private val index = mutableMapOf<String, MutableMap<FileId, MutableList<FileOffset>>>()
+    private val index = mutableMapOf<String, Map<FileId, List<FileOffset>>>()
     private val forwardIndex = mutableMapOf<FileId, Set<String>>()
 
     override fun read(key: String): FileIdToOffsets = index[key] ?: emptyMap()
-    override fun clear() {
-        index.clear()
-        forwardIndex.clear()
-    }
 
-    override fun addIndex(fileId: Int, data: Map<String, List<Int>>) {
-        data.forEach { (key, value) ->
-            if (!index.contains(key)) {
-                index[key] = mutableMapOf()
+    override fun withUpdates(block: WriteableKofuseIndex.() -> Unit): KofuseIndex {
+        val copy = MemoryKofuseIndex()
+        copy.index.putAll(index)
+        copy.forwardIndex.putAll(forwardIndex)
+        val writeableIndex = object : WriteableKofuseIndex {
+            override fun addIndex(fileId: Int, data: Map<String, List<Int>>) {
+                data.forEach { (key, offsets) ->
+                    val newMap = copy.index.getOrNone(key).fold(
+                        ifEmpty = {
+                            mapOf(fileId to offsets)
+                        },
+                        ifSome = {
+                            buildMap {
+                                putAll(it)
+                                put(fileId, offsets)
+                            }
+                        },
+                    )
+                    copy.index[key] = newMap
+                }
+                copy.forwardIndex[fileId] = data.keys + copy.forwardIndex[fileId].orEmpty()
             }
-            val entry = index[key]!!
-            if (!entry.contains(fileId)) {
-                entry[fileId] = mutableListOf()
-            }
-            index[key]!![fileId]!!.addAll(value)
-        }
-        forwardIndex[fileId] = data.keys + forwardIndex[fileId].orEmpty()
-    }
 
-    override fun updateIndex(fileId: Int, data: Map<String, List<Int>>) {
-        forwardIndex[fileId]?.forEach { key ->
-            index[key]?.remove(fileId)
-        }
-        forwardIndex[fileId] = data.keys
-        data.forEach { (key, value) ->
-            if (!index.contains(key)) {
-                index[key] = mutableMapOf()
+            override fun updateIndex(fileId: Int, data: Map<String, List<Int>>) {
+                copy.forwardIndex[fileId]?.let { existingKeys ->
+                    val newKeys = data.keys
+                    val keysToRemove = existingKeys - newKeys
+                    keysToRemove.forEach { key ->
+                        copy.index[key] = copy.index[key]!!.filter { it.key != fileId }
+                    }
+                }
+
+                data.forEach { (key, offsets) ->
+                    copy.index[key] = copy.index.getOrNone(key).fold(
+                        ifEmpty = {
+                            mapOf(fileId to offsets)
+                        },
+                        ifSome = {
+                            buildMap {
+                                putAll(it.filter { it.key != fileId })
+                                put(fileId, offsets)
+                            }
+                        },
+                    )
+                }
+
+                copy.forwardIndex[fileId] = data.keys
             }
-            index[key]!![fileId] = value.toMutableList()
+
         }
+        writeableIndex.block()
+        return copy
     }
 }
 

@@ -10,5 +10,5 @@ import com.intellij.openapi.vfs.VirtualFile
 internal sealed class FunctionIndexState {
     class Indexing(val fileOrDir: VirtualFile) : FunctionIndexState()
 
-    class Indexed(val index: WriteableKofuseIndex) : FunctionIndexState()
+    class Indexed(val index: KofuseIndex) : FunctionIndexState()
 }
