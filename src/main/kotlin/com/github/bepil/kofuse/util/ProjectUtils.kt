@@ -20,7 +20,7 @@ import kotlinx.coroutines.isActive
  */
 val Project.changes: Flow<PsiFile>
     get() = callbackFlow {
-        val disposable = Disposable {}
+        val disposable = ProjectChangesDisposable()
         val listener = object : PsiTreeAnyChangeAbstractAdapter() {
             override fun onChange(file: PsiFile?) {
                 file?.let { trySend(it) }
@@ -31,6 +31,10 @@ val Project.changes: Flow<PsiFile>
             Disposer.dispose(disposable)
         }
     }.buffer(128)
+
+private class ProjectChangesDisposable : Disposable {
+    override fun dispose() {}
+}
 
 /**
  * Emits a [Flow] of [VirtualFile]s that can be indexed for this [Project].
