@@ -22,6 +22,7 @@ repositories {
 }
 
 dependencies {
+    implementation(libs.arrowCore)
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinCoroutinesTest)
 }

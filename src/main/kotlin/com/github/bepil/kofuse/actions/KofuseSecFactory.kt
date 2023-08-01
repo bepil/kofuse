@@ -35,6 +35,7 @@ import com.intellij.util.Processor
 import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.ui.JButtonAction
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.VisibleForTesting
 import javax.swing.JComponent
@@ -55,6 +56,7 @@ class KofuseContributor(event: AnActionEvent) :
     override fun getGroupName(): String = KofuseBundle.message("name")
 
     override fun getSortWeight(): Int = 1
+
     // Be almost on top, but just after the calculator search results.
     // Because a colon is required for search results, we assume that results besides calculator results are less
     // important.
@@ -108,23 +110,29 @@ class KofuseContributor(event: AnActionEvent) :
     ) {
         val service = project.getService(FunctionIndexService::class.java)
         parse(rawPattern)?.let { parsed ->
+            // Since this is not called from the main thread, and we want to show the results after the index has
+            // been build without the user having to retype their query, we use runBlocking. Inside we do regularly
+            // call `checkCanceled` so we don't do unnecessary blocking processing for too long.
             runBlocking {
-                service.functionIndex.filterIsInstance<FunctionIndexState.Indexed>().awaitFirst()
-            }.let { functionIndex ->
-                runBlocking {
-                    functionIndex.index.findFunctionsMatching(
-                        parsed.returnType,
-                        parsed.parameterTypes,
-                        scopeDescriptor.scope,
-                        project
-                    ).collect {
-                        ReadAction.run<Throwable> {
-                            consumer.process(FoundItemDescriptor(it.result.function, it.result.score.toInt()))
-                        }
-                        progressIndicator.fraction = it.progress
+                service.functionIndex
+                    .onEach {
                         progressIndicator.checkCanceled()
                     }
-                }
+                    .filterIsInstance<FunctionIndexState.Indexed>()
+                    .awaitFirst().let { functionIndex ->
+                        functionIndex.index.findFunctionsMatching(
+                            parsed.returnType,
+                            parsed.parameterTypes,
+                            scopeDescriptor.scope,
+                            project
+                        ).collect {
+                            ReadAction.run<Throwable> {
+                                consumer.process(FoundItemDescriptor(it.result.function, it.result.score.toInt()))
+                            }
+                            progressIndicator.fraction = it.progress
+                            progressIndicator.checkCanceled()
+                        }
+                    }
             }
         }
     }
@@ -173,4 +181,3 @@ private fun parse(input: String): SearchQuery? {
     }
     return null
 }
-

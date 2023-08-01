@@ -1,5 +1,6 @@
 package com.github.bepil.kofuse.util
 
+import arrow.core.Either
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import kotlinx.coroutines.CompletableDeferred
@@ -8,7 +9,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 /**
@@ -34,11 +35,6 @@ suspend fun <T> Flow<T>.awaitFirst(): T = coroutineScope {
 }
 
 /**
- * Returns behaving as [this], but as an initial value returns `null`.
- */
-inline fun <reified T> Flow<T>.startWithNull(): Flow<T?> = map { it as T? }.onStart { emit(null) }
-
-/**
  * As [mapValues], but [transform] also gets an integer, starting from 0 and increasing by one with each subsequent
  * invocation.
  */
@@ -50,3 +46,9 @@ fun <K, V, O> Map<K, V>.mapEntriesIndexed(transform: (Int, Map.Entry<K, V>) -> O
         }
     }
 }
+
+/**
+ * Like [merge], however, it is possible to merge two [Flow]s of different types.
+ */
+fun <X, Y> mergeEither(left: Flow<X>, right: Flow<Y>) =
+    merge(left.map { Either.Left(it) }, right.map { Either.Right(it) })

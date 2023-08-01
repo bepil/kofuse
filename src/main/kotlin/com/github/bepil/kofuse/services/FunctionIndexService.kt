@@ -14,8 +14,8 @@ import com.github.bepil.kofuse.util.changes
 import com.github.bepil.kofuse.util.disposing
 import com.github.bepil.kofuse.util.indexableFiles
 import com.github.bepil.kofuse.util.mapEntriesIndexed
+import com.github.bepil.kofuse.util.mergeEither
 import com.github.bepil.kofuse.util.returnTypeFqName
-import com.github.bepil.kofuse.util.startWithNull
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.TaskInfo
@@ -35,7 +35,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -43,12 +42,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.fold
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import org.jetbrains.kotlin.idea.base.psi.kotlinFqName
@@ -115,6 +116,11 @@ internal class TestFunctionIndexService(project: Project) : FunctionIndexService
     override val coroutineScope = CoroutineScope(NonDispatchingDispatcher()).disposing(this)
 }
 
+private data class IndexWithUnprocessedChanges(
+    val index: FunctionIndexState? = null,
+    val unprocessedChanges: Set<VirtualFile> = emptySet()
+)
+
 private fun CoroutineScope.displayIndexingStateInUi(project: Project, flowToDisplay: SharedFlow<FunctionIndexState>) =
     launch {
         flowToDisplay.fold<FunctionIndexState, ProgressWindow?>(null) { acc, value ->
@@ -146,24 +152,78 @@ private fun CoroutineScope.displayIndexingStateInUi(project: Project, flowToDisp
     }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-private fun createFunctionIndex(project: Project, indexFlow: Flow<WriteableKofuseIndex>): Flow<FunctionIndexState> {
-    return combine(
+private fun createFunctionIndex(project: Project, indexFlow: Flow<KofuseIndex>): Flow<FunctionIndexState> =
+    createFunctionIndexFromFunctionIndexState(
+        project,
         indexFlow.flatMapLatest {
             buildKotlinIndex(project, it)
-        }.buffer(0, onBufferOverflow = BufferOverflow.SUSPEND),
-        project.changes.startWithNull()
-    ) { functionIndex, changedFile ->
-        if (functionIndex is FunctionIndexState.Indexed) {
-            changedFile?.virtualFile?.let {
-                updateKotlinIndex(project, functionIndex.index, it)
+        }.buffer(0, onBufferOverflow = BufferOverflow.SUSPEND)
+    )
+
+
+private fun createFunctionIndexFromFunctionIndexState(
+    project: Project,
+    index: Flow<FunctionIndexState>
+): Flow<FunctionIndexState> = mergeEither(index, project.changes.map { it.virtualFile })
+    .runningFold(
+        IndexWithUnprocessedChanges(
+            null,
+            emptySet()
+        )
+    ) { acc, either ->
+        either.fold(
+            ifLeft = { functionIndexState ->
+                when (functionIndexState) {
+                    is FunctionIndexState.Indexed -> updatedIndex(
+                        functionIndexState.index,
+                        acc.unprocessedChanges,
+                        project
+                    )
+
+                    is FunctionIndexState.Indexing -> IndexWithUnprocessedChanges(
+                        functionIndexState,
+                        acc.unprocessedChanges
+                    )
+                }
+            },
+            ifRight = { virtualFile ->
+                when (acc.index) {
+                    is FunctionIndexState.Indexed -> updatedIndex(
+                        acc.index.index,
+                        acc.unprocessedChanges + virtualFile,
+                        project
+                    )
+
+                    else -> IndexWithUnprocessedChanges(acc.index, acc.unprocessedChanges + virtualFile)
+                }
             }
+        )
+    }.transform { indexState ->
+        indexState.index?.let {
+            emit(it)
         }
-        functionIndex
     }
+
+private fun updatedIndex(
+    oldIndex: KofuseIndex,
+    unprocessedChanges: Set<VirtualFile>,
+    project: Project
+): IndexWithUnprocessedChanges {
+    val newIndex = oldIndex.withUpdates {
+        unprocessedChanges.forEach {
+            updateKotlinIndex(project, it)
+        }
+    }
+    return IndexWithUnprocessedChanges(
+        FunctionIndexState.Indexed(
+            newIndex
+        ),
+        emptySet()
+    )
 }
 
 /**
- * Searches for a [KtNamedFunction] based on the fully qualified return type of a function [returnTypeFqn].
+ * Searches for a [KtNamedFunction] based on [returnTypeFqn], the fully qualified return type of the function.
  * Functions are only returned if:
  * - their required inputs are in [parameterTypeFqns]. Inputs are the function's
  * parameters and receiver type;
@@ -245,25 +305,27 @@ private inline val KtNamedFunction.inputs: Sequence<String>
 
 private suspend fun buildKotlinIndex(
     project: Project,
-    index: WriteableKofuseIndex,
+    index: KofuseIndex,
 ): Flow<FunctionIndexState> = callbackFlow {
     val psiManager = DumbService.getInstance(project).runReadActionInSmartMode<PsiManager> {
         PsiManager.getInstance(project)
     }
-    project.indexableFiles().collect { fileOrDir ->
+    val accumulatingIndex = project.indexableFiles().runningFold(index) { accumulatingIndex, fileOrDir ->
         trySend(FunctionIndexState.Indexing(fileOrDir))
         yield()
-        DumbService.getInstance(project).runReadActionInSmartMode {
-            if (fileOrDir.isKotlinFileType()) {
-                psiManager.findFile(fileOrDir)?.let { psiFile ->
-                    val map = mapFile(psiFile)
-                    val fileId = FileBasedIndex.getFileId(fileOrDir)
-                    index.addIndex(fileId, map)
+        accumulatingIndex.withUpdates {
+            DumbService.getInstance(project).runReadActionInSmartMode {
+                if (fileOrDir.isKotlinFileType()) {
+                    psiManager.findFile(fileOrDir)?.let { psiFile ->
+                        val map = mapFile(psiFile)
+                        val fileId = FileBasedIndex.getFileId(fileOrDir)
+                        addIndex(fileId, map)
+                    }
                 }
             }
         }
     }
-    trySendBlocking(FunctionIndexState.Indexed(index))
+    send(FunctionIndexState.Indexed(accumulatingIndex.last()))
     close() // Close, since we are done. This prevents the caller waiting for more unnecessarily.
     awaitClose { }
 }
@@ -283,9 +345,8 @@ private suspend fun buildKotlinIndex(
  *
  * If `fun b` is changed to return, for example, an `Int`, then `a`'s return type isn't updated in the index.
  */
-private fun updateKotlinIndex(
+private fun WriteableKofuseIndex.updateKotlinIndex(
     project: Project,
-    index: WriteableKofuseIndex,
     fileOrDir: VirtualFile
 ) {
     if (fileOrDir.isKotlinFileType()) {
@@ -293,7 +354,7 @@ private fun updateKotlinIndex(
             PsiManager.getInstance(project).findFile(fileOrDir)?.let { psiFile ->
                 val fileId = FileBasedIndex.getFileId(fileOrDir)
                 val newData = mapFile(psiFile)
-                index.updateIndex(fileId, newData)
+                updateIndex(fileId, newData)
             }
         }
     }
